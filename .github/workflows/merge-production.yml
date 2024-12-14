@@ -1,0 +1,59 @@
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      REACT_APP_SERVER_URL: 'api.nodafi.com/graphql'
+      REACT_APP_OPTIMIZELY_SDK_KEY: ${{ secrets.PROD_OPTIMIZELY_SDK_KEY }}
+      REACT_APP_INTERCOM_APP_ID: ${{ secrets.PROD_REACT_APP_INTERCOM_APP_ID }}
+      REACT_APP_ZENDESK_API_KEY: ${{ secrets.PROD_REACT_APP_ZENDESK_API_KEY }}
+      REACT_APP_DATADOG_APP_ID: 'ac9e995f-8813-4fd7-a73c-d44a405ea285'
+      REACT_APP_DATADOG_CLIENT_TOKEN: 'pubad2ce5785f80040d8a3e061a40cca49d'
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from package.json
+        run: echo "REACT_APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Set Tag Name
+        run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        uses: reggionick/s3-deploy@v2
+        with:
+          folder: build
+          bucket: ${{ secrets.PRODUCTION_S3_BUCKET }}
+          bucket-region: ${{ secrets.PRODUCTION_S3_BUCKET_REGION }}
+          dist-id: ${{ secrets.PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID }}
+          invalidation: /
+          delete-removed: true
+
+      - name: Notify development slack channel of production deploy
+        uses: rtCamp/action-slack-notify@v2.0.2
+        env:
+          SLACK_CHANNEL: dev-updates
+          SLACK_COLOR: '#3278BD'
+          SLACK_ICON: https://avatars0.githubusercontent.com/u/44036562?s=100&v=4
+          SLACK_MESSAGE: 'Deployment of ${{ env.CURRENT_TAG }} to production underway. View the CloudFront status at (https://console.aws.amazon.com/cloudfront/home#distributions) and app at demo.nodafi.com'
+          SLACK_TITLE: Deploying `nodafi_web` to production
+          SLACK_USERNAME: Github Action Bot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,124 @@
+name: Cypress Regression Tests
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Merge Master']
+    types:
+      - completed
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+    env:
+      REACT_APP_OPTIMIZELY_SDK_KEY: ${{ secrets.STAGING_OPTIMIZELY_SDK_KEY }}
+      REACT_APP_VERSION: $npm_package_version
+      REACT_APP_SERVER_URL: api.nodafi-staging.com/graphql
+      CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        containers: [1, 2, 3, 4, 5, 6, 7, 8]
+
+    steps:
+      - name: Set $TERM variable
+        run: echo "TERM=xterm-256color" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.ACTION_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v2
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Cypress Tests
+        run: npm run cypress:regressionSuite
+
+      - name: Set Color based on Status
+        id: set-color
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "color=#0FB748" >> $GITHUB_ENV
+          else
+            echo "color=#E90710" >> $GITHUB_ENV
+          fi
+      - name: Upload Cypress Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: Cypress Results
+          path: 'cypress/results'
+          retention-days: 30
+
+      - name: Save Status
+        run: |
+          if [ -z "${{ env.color }}" ]; then
+            echo "color=#E90710" >> $GITHUB_ENV
+          fi
+          echo "${{ env.color }}" >> status_${{ matrix.containers }}.txt
+        if: always()
+
+      - name: Check if Status File Exists
+        id: check-status-file
+        run: |
+          if [ ! -f "status_${{ matrix.containers }}.txt" ]; then
+            echo "#E90710" > "status_${{ matrix.containers }}.txt"
+          fi
+        if: always()
+
+      - name: Check if Data in File Exists
+        id: check-data-in-file
+        run: |
+          if [ ! -s "status_${{ matrix.containers }}.txt" ]; then
+            echo "#E90710" > "status_${{ matrix.containers }}.txt"
+          fi
+        if: always()
+
+      - name: Upload Status Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Status
+          path: status_${{ matrix.containers }}.txt
+          retention-days: 1
+        if: always()
+
+  send-slack-notification:
+    needs: cypress-run
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download Status Artifacts
+        id: download-status
+        uses: actions/download-artifact@v3
+        with:
+          name: Status
+          path: Status
+
+      - name: Determine Overall Status
+        id: determine-status
+        run: |
+          overall_status="passed"
+          for i in $(seq 1 8); do
+          path="Status/status_$i.txt" 
+          echo "Reading status file: $path"  
+          if ! grep -q "#0FB748" "$path"; then
+            overall_status="failed"
+            break
+          fi     
+          done
+          echo "Overall status: $overall_status"  # Debugging statement
+          echo "overall_status=$overall_status" >> $GITHUB_ENV
+      - name: Send Message to Slack
+        uses: rtCamp/action-slack-notify@v2.0.2
+        env:
+          SLACK_CHANNEL: dev-updates
+          SLACK_COLOR: ${{ env.overall_status == 'failed' && '#E90710' || '#0FB748' }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_MESSAGE: "${{ env.overall_status == 'failed' && ':red_circle: GitHub Action failed for regression suite' || ':white_check_mark: GitHub Action passed for regression suite' }} in ${{ github.repository }} (${{ github.sha }})"

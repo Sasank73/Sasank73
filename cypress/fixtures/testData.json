@@ -1,0 +1,66 @@
+{
+  "locationNames": {
+    "locationName": "Test Building",
+    "gvrLocation": "GVR Tower"
+  },
+  "menuItems": {
+    "issueButton": "Issue categories",
+    "locationButton": "Locations",
+    "surveyButton": "Surveys"
+  },
+  "spaceNames": {
+    "spaceItem": "Conference room",
+    "playSpace": "Play park"
+  },
+  "issues": {
+    "cleanUpIssue": "Needs Cleanup"
+  },
+  "buttonNames": {
+    "spaceButton": "Spaces",
+    "saveButton": "Save",
+    "portalButton": "Go to portal",
+    "submitButton": "Submit"
+  },
+  "verifications": {
+    "portalText": "Welcome to ",
+    "loginTxt": "Sign in",
+    "vrfyLocPage": "Locations",
+    "vrfyCreateLocPage": "Create location",
+    "vrfyEditPage": "Edit",
+    "vrfySpcPage": "Spaces",
+    "vrfySpcCreatePage": "Create space",
+    "vrfyIssuePage": "Issues categories",
+    "vrfyIssueCreatePage": "Create issue",
+    "vrfyPortalSpcPage": "Please select a space.",
+    "vrfyPortalIssuePage": "Please select an issue",
+    "vrfyPortalCommnetPage": "A comment is required for this issue.",
+    "locName": "Sample Location",
+    "spacName": "Survey preview space",
+    "vrfySurveyEditPage": "Edit survey"
+  },
+
+  "procedureVerifications": {
+    "createProcPage": "Create procedure template"
+  },
+
+  "tikcetScheduleInfo": {
+    "monthDueDateText": "weeks before due date",
+    "monthDayValue": "2",
+    "weekDueDateText": "days before due date",
+    "weekDayValue": "5"
+  },
+  "password": "1234567",
+  "imageLength": 4,
+  "buttonInTimeTrack": {
+    "addPart": "Add a part",
+    "logTime": "Log time",
+    "addOther": "Add another cost",
+    "submit": "Submit"
+  },
+  "warningMessaages": {
+    "selectPart": "Please select a part.",
+    "enterQuantity": "Please enter a number for the quantity.",
+    "validTime": "Please enter a valid time.",
+    "noAccess": "You do not have permission to create this user."
+  }
+}

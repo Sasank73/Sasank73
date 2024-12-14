@@ -1,0 +1,90 @@
+name: Merge Master
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - 'package.json'
+      - 'CHANGELOG.md'
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.ACTION_TOKEN }}
+      - name: Bump version and push tag
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v4.0.0
+        with:
+          github-token: ${{ secrets.ACTION_TOKEN }}
+          git-message: 'chore(release): {version}'
+          preset: 'angular'
+          tag-prefix: 'v'
+          output-file: 'CHANGELOG.md'
+
+      - name: Notify development slack channel of new release
+        uses: rtCamp/action-slack-notify@v2.0.2
+        env:
+          SLACK_CHANNEL: dev-updates
+          SLACK_COLOR: '#3278BD'
+          SLACK_ICON: https://avatars0.githubusercontent.com/u/44036562?s=100&v=4
+          SLACK_MESSAGE: 'Release ${{ steps.changelog.outputs.tag }} created for `nodafi_web`. Configuring deployment to staging :rocket:'
+          SLACK_TITLE: Merged to master
+          SLACK_USERNAME: Github Action Bot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+    outputs:
+      tag: ${{ steps.changelog.outputs.tag }}
+  deploy-staging:
+    needs: tag
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      REACT_APP_SERVER_URL: 'api.nodafi-staging.com/graphql'
+      REACT_APP_OPTIMIZELY_SDK_KEY: ${{ secrets.STAGING_OPTIMIZELY_SDK_KEY }}
+      REACT_APP_INTERCOM_APP_ID: ${{ secrets.STAGING_REACT_APP_INTERCOM_APP_ID }}
+      REACT_APP_ZENDESK_API_KEY: ${{ secrets.STAGING_REACT_APP_ZENDESK_API_KEY }}
+      REACT_APP_DATADOG_APP_ID: 'a9474889-ae29-4738-9a39-9c914907ea09'
+      REACT_APP_DATADOG_CLIENT_TOKEN: 'pub22f240318e61cf3a0d073fa1ecc30727'
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from package.json
+        run: echo "REACT_APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        uses: reggionick/s3-deploy@v2
+        with:
+          folder: build
+          bucket: ${{ secrets.STAGING_S3_BUCKET }}
+          bucket-region: ${{ secrets.STAGING_S3_BUCKET_REGION }}
+          dist-id: ${{ secrets.STAGING_CLOUDFRONT_DISTRIBUTION_ID }}
+          invalidation: /
+          delete-removed: true
+
+      - name: Notify development slack channel of staging
+        uses: rtCamp/action-slack-notify@v2.0.2
+        env:
+          SLACK_CHANNEL: dev-updates
+          SLACK_COLOR: '#3278BD'
+          SLACK_ICON: https://avatars0.githubusercontent.com/u/44036562?s=100&v=4
+          SLACK_MESSAGE: 'Deployment of ${{ needs.tag.outputs.tag }} to staging underway. View the CloudFront status here at (https://console.aws.amazon.com/cloudfront/home#distributions) and app at nodafi-staging.com'
+          SLACK_TITLE: Deploying `nodafi_web` to staging
+          SLACK_USERNAME: Github Action Bot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
